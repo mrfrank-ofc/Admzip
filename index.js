@@ -1,69 +1,75 @@
-const fs = require('fs');
-const path = require('path');
-const axios = require('axios');
-const AdmZip = require('adm-zip'); // For extracting ZIP files
+const axios = require('axios'); // For making HTTP requests
+const fs = require('fs'); // For file system operations
+const { exec } = require('child_process'); // For running shell commands
+const admZip = require('adm-zip'); // For unzipping files
 
 // GitHub repository details
-const GITHUB_REPO = 'mrfrank-ofc/SUBZERO-BOT';
-const GITHUB_ZIP_URL = `https://github.com/${GITHUB_REPO}/archive/main.zip`;
+const REPO_OWNER = 'mrfrank-ofc';
+const REPO_NAME = 'SUBZERO-BOT';
+const REPO_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}/archive/refs/heads/main.zip`; // Replace 'main' with your branch name if different
 
 // Paths
-const BOT_DIR = __dirname; // Current directory (where index.js is located)
-const ZIP_FILE_PATH = path.join(BOT_DIR, 'latest.zip');
-const EXTRACT_DIR = path.join(BOT_DIR, 'latest');
+const ZIP_FILE_PATH = './repo.zip';
+const EXTRACT_FOLDER = './bot-files';
 
-async function downloadAndUpdateBot() {
+// Function to download the repository as a ZIP file
+async function downloadRepo() {
     try {
-        console.log('🔍 Checking for updates...');
-
-        // Step 1: Download the latest code
-        console.log('⬇️ Downloading the latest code...');
-        const response = await axios.get(GITHUB_ZIP_URL, { responseType: 'arraybuffer' });
+        console.log('Downloading repository...');
+        const response = await axios.get(REPO_URL, { responseType: 'arraybuffer' });
         fs.writeFileSync(ZIP_FILE_PATH, response.data);
-
-        // Step 2: Extract the ZIP file
-        console.log('📦 Extracting the latest code...');
-        const zip = new AdmZip(ZIP_FILE_PATH);
-        zip.extractAllTo(EXTRACT_DIR, true);
-
-        // Step 3: Replace existing files
-        console.log('🔄 Replacing files...');
-        const sourceDir = path.join(EXTRACT_DIR, `${GITHUB_REPO.split('/')[1]}-main`);
-        copyFolderSync(sourceDir, BOT_DIR);
-
-        // Step 4: Clean up
-        console.log('🧹 Cleaning up...');
-        fs.unlinkSync(ZIP_FILE_PATH); // Delete the ZIP file
-        fs.rmSync(EXTRACT_DIR, { recursive: true, force: true }); // Delete the extraction directory
-
-        console.log('✅ Bot updated successfully!');
+        console.log('Repository downloaded successfully.');
     } catch (error) {
-        console.error('❌ Error updating bot:', error);
+        console.error('Error downloading repository:', error);
+        process.exit(1);
     }
 }
 
-// Function to copy a folder recursively
-function copyFolderSync(source, destination) {
-    if (!fs.existsSync(destination)) {
-        fs.mkdirSync(destination, { recursive: true });
+// Function to unzip the repository
+function unzipRepo() {
+    try {
+        console.log('Unzipping repository...');
+        const zip = new admZip(ZIP_FILE_PATH);
+        zip.extractAllTo(EXTRACT_FOLDER, true);
+        console.log('Repository unzipped successfully.');
+    } catch (error) {
+        console.error('Error unzipping repository:', error);
+        process.exit(1);
     }
+}
 
-    const files = fs.readdirSync(source);
-    for (const file of files) {
-        const sourcePath = path.join(source, file);
-        const destinationPath = path.join(destination, file);
-
-        if (fs.lstatSync(sourcePath).isDirectory()) {
-            copyFolderSync(sourcePath, destinationPath);
-        } else {
-            fs.copyFileSync(sourcePath, destinationPath);
+// Function to install dependencies
+function installDependencies() {
+    console.log('Installing dependencies...');
+    exec('npm install', { cwd: EXTRACT_FOLDER }, (error, stdout, stderr) => {
+        if (error) {
+            console.error('Error installing dependencies:', error);
+            process.exit(1);
         }
-    }
+        console.log(stdout);
+        console.log('Dependencies installed successfully.');
+        startBot();
+    });
 }
 
-// Run the update process when the bot starts
-downloadAndUpdateBot().then(() => {
-    console.log('🚀 Starting the bot...');
-    // Start your bot here
-    require('./index'); // Replace with your bot's main file
-});
+// Function to start the bot
+function startBot() {
+    console.log('Starting the bot...');
+    exec('node index.js', { cwd: EXTRACT_FOLDER }, (error, stdout, stderr) => {
+        if (error) {
+            console.error('Error starting the bot:', error);
+            process.exit(1);
+        }
+        console.log(stdout);
+    });
+}
+
+// Main function
+async function main() {
+    await downloadRepo();
+    unzipRepo();
+    installDependencies();
+}
+
+// Run the main function
+main();
