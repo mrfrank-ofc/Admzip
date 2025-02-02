@@ -65,5 +65,5 @@ function copyFolderSync(source, destination) {
 downloadAndUpdateBot().then(() => {
     console.log('🚀 Starting the bot...');
     // Start your bot here
-    require('./'); // Replace with your bot's main file
+    require('./index'); // Replace with your bot's main file
 });
